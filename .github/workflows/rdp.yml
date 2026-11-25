@@ -1,0 +1,54 @@
+
+name: Windows RDP - Tailscale
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rdp:
+    runs-on: windows-2025
+    timeout-minutes: 360
+
+    steps:
+      - name: Enable Remote Desktop
+        shell: pwsh
+        env:
+          RDP_PASSWORD: ${{ secrets.RDP_PASSWORD }}
+        run: |
+          $password = ConvertTo-SecureString $env:RDP_PASSWORD -AsPlainText -Force
+
+          Set-LocalUser -Name "runneradmin" -Password $password
+
+          Set-ItemProperty `
+            -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" `
+            -Name "fDenyTSConnections" -Value 0
+
+          Get-NetFirewallRule -DisplayGroup "Remote Desktop" |
+            Enable-NetFirewallRule
+
+          Write-Host "RDP Enabled Successfully"
+
+      - name: Connect Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          authkey: ${{ secrets.TS_AUTHKEY }}
+
+      - name: Show RDP Connection Details
+        shell: pwsh
+        run: |
+          $ip = tailscale ip -4
+
+          Write-Host "================================"
+          Write-Host "RDP IP: $ip"
+          Write-Host "Username: runneradmin"
+          Write-Host "Port: 3389"
+          Write-Host "================================"
+
+      - name: Keep RDP Alive
+        shell: pwsh
+        run: |
+          Write-Host "RDP Server is Running..."
+          Start-Sleep -Seconds 20700
